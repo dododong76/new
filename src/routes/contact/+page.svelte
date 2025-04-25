@@ -124,7 +124,7 @@
     }
   }
 
-  async function renderPage(pageNum) {
+  async function renderPage(pageNum, alternativeSearchText = null) {
     try {
       const page = await pdfDoc.getPage(pageNum);
       const viewport = page.getViewport({ scale });
@@ -144,7 +144,7 @@
       await page.render(renderContext).promise;
       
       // 하이라이트된 텍스트가 있다면 그리기
-      if (searchText) {
+      if (searchText || alternativeSearchText) {
         const textContent = await page.getTextContent({
           normalizeWhitespace: true,
           disableCombineTextItems: false
@@ -152,7 +152,8 @@
         
         context.fillStyle = 'rgba(255, 255, 0, 0.3)';
         
-        const normalizedSearchText = searchText.normalize('NFC').toLowerCase().trim();
+        const searchPattern = alternativeSearchText || searchText;
+        const normalizedSearchPattern = searchPattern.normalize('NFC').toLowerCase().trim();
         
         // 텍스트 아이템을 위치 정보와 함께 저장
         const textItems = textContent.items.map(item => ({
@@ -163,34 +164,27 @@
           fontSize: item.transform[0]
         }));
 
-        // 각 텍스트 아이템에 대해 정확한 매칭 검사
-        for (let i = 0; i < textItems.length; i++) {
-          const item = textItems[i];
+        // 각 텍스트 아이템에 대해 검사
+        for (const item of textItems) {
           const itemText = item.text.toLowerCase();
           
-          // 정확한 단어 매칭을 위한 검사
-          if (itemText === normalizedSearchText) {
-            // 정확히 일치하는 경우
-            drawHighlight(item, viewport, context);
-          } else {
-            // 부분 문자열 검색
-            const startIndex = itemText.indexOf(normalizedSearchText);
-            if (startIndex !== -1) {
-              // 부분 문자열의 위치에 따라 하이라이트 영역 계산
-              const beforeText = item.text.substring(0, startIndex);
-              const highlightWidth = (normalizedSearchText.length / item.text.length) * item.width;
-              const startX = item.transform[4] + (beforeText.length / item.text.length) * item.width;
-              
-              const transform = viewport.transform;
-              const [x, y] = applyTransform([1, 0, 0, 1, startX, item.transform[5]], transform);
-              
-              context.fillRect(
-                x,
-                y - item.height,
-                highlightWidth * viewport.scale,
-                item.height * viewport.scale
-              );
-            }
+          // 부분 문자열 검색
+          const startIndex = itemText.indexOf(normalizedSearchPattern);
+          if (startIndex !== -1) {
+            // 부분 문자열의 위치에 따라 하이라이트 영역 계산
+            const beforeText = item.text.substring(0, startIndex);
+            const highlightWidth = (normalizedSearchPattern.length / item.text.length) * item.width;
+            const startX = item.transform[4] + (beforeText.length / item.text.length) * item.width;
+            
+            const transform = viewport.transform;
+            const [x, y] = applyTransform([1, 0, 0, 1, startX, item.transform[5]], transform);
+            
+            context.fillRect(
+              x,
+              y - item.height,
+              highlightWidth * viewport.scale,
+              item.height * viewport.scale
+            );
           }
         }
       }
@@ -238,43 +232,48 @@
       loading = true;
       errorMessage = '';
 
-      // 현재 페이지 다시 렌더링 (하이라이트 포함)
-      await renderPage(currentPage);
-      
       // 검색 로직 개선
       const normalizedSearchText = searchText.normalize('NFC').toLowerCase().trim();
       const contentText = pdfContent.normalize('NFC').toLowerCase();
       
-      console.log('검색 텍스트:', normalizedSearchText); // 디버깅용
+      console.log('검색할 텍스트:', normalizedSearchText);
+      console.log('문서 내용:', contentText);
+
+      // 정확한 검색을 위해 특수문자와 공백을 처리
+      const cleanSearchText = normalizedSearchText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       
-      // 정확한 단어 매칭을 위한 정규식
-      const regex = new RegExp(`\\b${normalizedSearchText}\\b`, 'gi');
-      const matches = contentText.match(regex) || [];
+      // 부분 일치 검색을 위한 정규식
+      const partialRegex = new RegExp(cleanSearchText, 'gi');
+      const matches = contentText.match(partialRegex) || [];
       
       if (matches.length === 0) {
-        // 부분 검색 시도
-        const words = normalizedSearchText.split(/\s+/);
+        // 단어 단위로 분리하여 검색
+        const words = normalizedSearchText.split(/\s+/).filter(word => word.length > 1);
         let found = false;
         
         for (const word of words) {
-          if (word.length > 1) {
-            const wordRegex = new RegExp(`\\b${word}\\b`, 'gi');
-            const wordMatches = contentText.match(wordRegex) || [];
-            if (wordMatches.length > 0) {
-              found = true;
-              errorMessage = `"${searchText}"와 정확히 일치하는 텍스트는 없지만, "${word}"가 ${wordMatches.length}개 발견되었습니다.`;
-              break;
-            }
+          const cleanWord = word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          const wordRegex = new RegExp(cleanWord, 'gi');
+          const wordMatches = contentText.match(wordRegex) || [];
+          
+          if (wordMatches.length > 0) {
+            found = true;
+            errorMessage = `"${searchText}"와 정확히 일치하는 텍스트는 없지만, "${word}"가 ${wordMatches.length}개 발견되었습니다.`;
+            // 발견된 단어로 하이라이트 표시
+            await renderPage(currentPage, word);
+            break;
           }
         }
         
         if (!found) {
           errorMessage = '검색된 텍스트가 없습니다.';
+          return;
         }
-        return;
+      } else {
+        errorMessage = `"${searchText}"가 총 ${matches.length}개 발견되었습니다.`;
+        // 전체 검색어로 하이라이트 표시
+        await renderPage(currentPage);
       }
-
-      errorMessage = `"${searchText}"가 총 ${matches.length}개 발견되었습니다.`;
       
     } catch (error) {
       errorMessage = '하이라이트 처리 중 오류가 발생했습니다: ' + error.message;
