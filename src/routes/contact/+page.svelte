@@ -159,34 +159,38 @@
           text: item.str.normalize('NFC'),
           transform: item.transform,
           width: item.width,
-          height: item.height
+          height: item.height,
+          fontSize: item.transform[0] // 글자 크기
         }));
 
-        // 연속된 텍스트 아이템을 결합하여 검색
+        // 각 텍스트 아이템에 대해 정확한 매칭 검사
         for (let i = 0; i < textItems.length; i++) {
-          let combinedText = textItems[i].text;
-          let combinedWidth = textItems[i].width;
-          let j = i + 1;
+          const item = textItems[i];
+          const itemText = item.text.toLowerCase();
           
-          // 가까운 위치의 텍스트 아이템을 결합
-          while (j < textItems.length && 
-                 Math.abs(textItems[j-1].transform[5] - textItems[j].transform[5]) < 2 &&
-                 textItems[j].transform[4] - (textItems[j-1].transform[4] + textItems[j-1].width) < 10) {
-            combinedText += textItems[j].text;
-            combinedWidth += textItems[j].width;
-            j++;
-          }
-          
-          if (combinedText.toLowerCase().includes(searchText)) {
-            const transform = viewport.transform;
-            const [x, y] = applyTransform(textItems[i].transform, transform);
-            
-            context.fillRect(
-              x,
-              y - textItems[i].height,
-              combinedWidth * viewport.scale,
-              textItems[i].height * viewport.scale
-            );
+          // 정확한 단어 매칭을 위한 검사
+          if (itemText === searchText) {
+            // 정확히 일치하는 경우
+            highlightText(item, viewport, context);
+          } else {
+            // 부분 문자열 검색
+            const startIndex = itemText.indexOf(searchText);
+            if (startIndex !== -1) {
+              // 부분 문자열의 위치에 따라 하이라이트 영역 계산
+              const beforeText = item.text.substring(0, startIndex);
+              const highlightWidth = (searchText.length / item.text.length) * item.width;
+              const startX = item.transform[4] + (beforeText.length / item.text.length) * item.width;
+              
+              const transform = viewport.transform;
+              const [x, y] = applyTransform([1, 0, 0, 1, startX, item.transform[5]], transform);
+              
+              context.fillRect(
+                x,
+                y - item.height,
+                highlightWidth * viewport.scale,
+                item.height * viewport.scale
+              );
+            }
           }
         }
       }
@@ -195,6 +199,19 @@
     } catch (error) {
       console.error('페이지 렌더링 오류:', error);
     }
+  }
+
+  // 텍스트 아이템 하이라이트 함수
+  function highlightText(item, viewport, context) {
+    const transform = viewport.transform;
+    const [x, y] = applyTransform(item.transform, transform);
+    
+    context.fillRect(
+      x,
+      y - item.height,
+      item.width * viewport.scale,
+      item.height * viewport.scale
+    );
   }
 
   function applyTransform(itemTransform, viewportTransform) {
@@ -230,24 +247,24 @@
       
       console.log('검색 텍스트:', searchText); // 디버깅용
       
-      const textPositions = [];
-      let pos = contentText.indexOf(searchText);
+      // 정확한 단어 매칭을 위한 정규식
+      const regex = new RegExp(`\\b${searchText}\\b`, 'gi');
+      const matches = contentText.match(regex) || [];
       
-      while (pos !== -1) {
-        textPositions.push(pos);
-        pos = contentText.indexOf(searchText, pos + 1);
-      }
-
-      if (textPositions.length === 0) {
+      if (matches.length === 0) {
         // 부분 검색 시도
         const words = searchText.split(/\s+/);
         let found = false;
         
         for (const word of words) {
-          if (word.length > 1 && contentText.includes(word)) {
-            found = true;
-            errorMessage = `"${highlightText}"와 정확히 일치하는 텍스트는 없지만, "${word}"가 포함된 부분이 있습니다.`;
-            break;
+          if (word.length > 1) {
+            const wordRegex = new RegExp(`\\b${word}\\b`, 'gi');
+            const wordMatches = contentText.match(wordRegex) || [];
+            if (wordMatches.length > 0) {
+              found = true;
+              errorMessage = `"${highlightText}"와 정확히 일치하는 텍스트는 없지만, "${word}"가 ${wordMatches.length}개 발견되었습니다.`;
+              break;
+            }
           }
         }
         
@@ -257,7 +274,7 @@
         return;
       }
 
-      errorMessage = `"${highlightText}"가 총 ${textPositions.length}개 발견되었습니다.`;
+      errorMessage = `"${highlightText}"가 총 ${matches.length}개 발견되었습니다.`;
       
     } catch (error) {
       errorMessage = '하이라이트 처리 중 오류가 발생했습니다: ' + error.message;
