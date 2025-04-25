@@ -141,50 +141,60 @@
         enhanceTextSelection: true
       };
       
+      // PDF 페이지 렌더링
       await page.render(renderContext).promise;
       
-      // 하이라이트된 텍스트가 있다면 그리기
+      // 하이라이트 처리
       if (searchText || alternativeSearchText) {
         const textContent = await page.getTextContent({
           normalizeWhitespace: true,
           disableCombineTextItems: false
         });
         
-        context.fillStyle = 'rgba(255, 255, 0, 0.3)';
+        const searchPattern = (alternativeSearchText || searchText).normalize('NFC').toLowerCase().trim();
+        console.log('하이라이트할 패턴:', searchPattern);
         
-        const searchPattern = alternativeSearchText || searchText;
-        const normalizedSearchPattern = searchPattern.normalize('NFC').toLowerCase().trim();
+        // 텍스트 레이어 생성
+        const textLayer = document.createElement('div');
+        textLayer.style.position = 'absolute';
+        textLayer.style.left = '0';
+        textLayer.style.top = '0';
+        textLayer.style.right = '0';
+        textLayer.style.bottom = '0';
+        textLayer.style.pointerEvents = 'none';
+        canvasContainer.appendChild(textLayer);
         
-        // 텍스트 아이템을 위치 정보와 함께 저장
-        const textItems = textContent.items.map(item => ({
-          text: item.str.normalize('NFC'),
-          transform: item.transform,
-          width: item.width,
-          height: item.height,
-          fontSize: item.transform[0]
-        }));
-
-        // 각 텍스트 아이템에 대해 검사
-        for (const item of textItems) {
-          const itemText = item.text.toLowerCase();
+        // 텍스트 아이템 처리
+        for (const item of textContent.items) {
+          const itemText = item.str.normalize('NFC');
+          const itemTextLower = itemText.toLowerCase();
           
-          // 부분 문자열 검색
-          const startIndex = itemText.indexOf(normalizedSearchPattern);
-          if (startIndex !== -1) {
-            // 부분 문자열의 위치에 따라 하이라이트 영역 계산
-            const beforeText = item.text.substring(0, startIndex);
-            const highlightWidth = (normalizedSearchPattern.length / item.text.length) * item.width;
-            const startX = item.transform[4] + (beforeText.length / item.text.length) * item.width;
-            
+          // 검색어가 포함된 경우에만 처리
+          if (itemTextLower.includes(searchPattern)) {
+            // viewport 변환 행렬 적용
             const transform = viewport.transform;
-            const [x, y] = applyTransform([1, 0, 0, 1, startX, item.transform[5]], transform);
+            const [x, y] = applyTransform(item.transform, transform);
             
-            context.fillRect(
-              x,
-              y - item.height,
-              highlightWidth * viewport.scale,
-              item.height * viewport.scale
-            );
+            // 하이라이트 요소 생성
+            const highlight = document.createElement('div');
+            highlight.style.position = 'absolute';
+            highlight.style.backgroundColor = 'rgba(255, 255, 0, 0.3)';
+            highlight.style.left = `${x}px`;
+            highlight.style.top = `${y - item.height * viewport.scale}px`;
+            highlight.style.width = `${item.width * viewport.scale}px`;
+            highlight.style.height = `${item.height * viewport.scale}px`;
+            highlight.style.pointerEvents = 'none';
+            
+            // 검색어의 위치에 따른 하이라이트 조정
+            const startIndex = itemTextLower.indexOf(searchPattern);
+            if (startIndex > 0) {
+              const beforeText = itemText.substring(0, startIndex);
+              const beforeWidth = (beforeText.length / itemText.length) * item.width * viewport.scale;
+              highlight.style.left = `${x + beforeWidth}px`;
+              highlight.style.width = `${(searchPattern.length / itemText.length) * item.width * viewport.scale}px`;
+            }
+            
+            textLayer.appendChild(highlight);
           }
         }
       }
@@ -232,6 +242,14 @@
       loading = true;
       errorMessage = '';
 
+      // 이전 하이라이트 제거
+      if (canvasContainer) {
+        const oldTextLayer = canvasContainer.querySelector('div');
+        if (oldTextLayer) {
+          canvasContainer.removeChild(oldTextLayer);
+        }
+      }
+
       // 검색 로직 개선
       const normalizedSearchText = searchText.normalize('NFC').toLowerCase().trim();
       const contentText = pdfContent.normalize('NFC').toLowerCase();
@@ -259,7 +277,6 @@
           if (wordMatches.length > 0) {
             found = true;
             errorMessage = `"${searchText}"와 정확히 일치하는 텍스트는 없지만, "${word}"가 ${wordMatches.length}개 발견되었습니다.`;
-            // 발견된 단어로 하이라이트 표시
             await renderPage(currentPage, word);
             break;
           }
@@ -271,7 +288,6 @@
         }
       } else {
         errorMessage = `"${searchText}"가 총 ${matches.length}개 발견되었습니다.`;
-        // 전체 검색어로 하이라이트 표시
         await renderPage(currentPage);
       }
       
