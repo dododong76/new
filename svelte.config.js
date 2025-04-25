@@ -19,6 +19,9 @@ const config = {
     prerender: {
       handleHttpError: "warn",
     },
+    csrf: {
+      checkOrigin: false,
+    },
   },
 };
 
