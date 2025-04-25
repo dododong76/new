@@ -153,7 +153,8 @@
         
         const searchPattern = (alternativeSearchText || searchText).normalize('NFC').toLowerCase().trim();
         
-        context.fillStyle = 'rgba(255, 255, 0, 0.3)';
+        // 밝은 노란색 배경으로 변경
+        context.fillStyle = '#fff94c';
         
         for (const item of textContent.items) {
           const itemText = item.str.normalize('NFC').toLowerCase();
@@ -163,11 +164,13 @@
             const tx = transform[0] * item.transform[4] + transform[2] * item.transform[5] + transform[4];
             const ty = transform[1] * item.transform[4] + transform[3] * item.transform[5] + transform[5];
             
+            // 하이라이트 영역을 약간 키워서 텍스트를 완전히 덮도록 함
+            const padding = 2;
             context.fillRect(
-              tx,
-              ty - (item.height * scale),
-              item.width * scale,
-              item.height * scale
+              tx - padding,
+              ty - (item.height * scale) - padding,
+              (item.width * scale) + (padding * 2),
+              (item.height * scale) + (padding * 2)
             );
           }
         }
