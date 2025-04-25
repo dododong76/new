@@ -152,49 +152,23 @@
         });
         
         const searchPattern = (alternativeSearchText || searchText).normalize('NFC').toLowerCase().trim();
-        console.log('하이라이트할 패턴:', searchPattern);
         
-        // 텍스트 레이어 생성
-        const textLayer = document.createElement('div');
-        textLayer.style.position = 'absolute';
-        textLayer.style.left = '0';
-        textLayer.style.top = '0';
-        textLayer.style.right = '0';
-        textLayer.style.bottom = '0';
-        textLayer.style.pointerEvents = 'none';
-        canvasContainer.appendChild(textLayer);
+        context.fillStyle = 'rgba(255, 255, 0, 0.3)';
         
-        // 텍스트 아이템 처리
         for (const item of textContent.items) {
-          const itemText = item.str.normalize('NFC');
-          const itemTextLower = itemText.toLowerCase();
+          const itemText = item.str.normalize('NFC').toLowerCase();
           
-          // 검색어가 포함된 경우에만 처리
-          if (itemTextLower.includes(searchPattern)) {
-            // viewport 변환 행렬 적용
+          if (itemText.includes(searchPattern)) {
             const transform = viewport.transform;
-            const [x, y] = applyTransform(item.transform, transform);
+            const tx = transform[0] * item.transform[4] + transform[2] * item.transform[5] + transform[4];
+            const ty = transform[1] * item.transform[4] + transform[3] * item.transform[5] + transform[5];
             
-            // 하이라이트 요소 생성
-            const highlight = document.createElement('div');
-            highlight.style.position = 'absolute';
-            highlight.style.backgroundColor = 'rgba(255, 255, 0, 0.3)';
-            highlight.style.left = `${x}px`;
-            highlight.style.top = `${y - item.height * viewport.scale}px`;
-            highlight.style.width = `${item.width * viewport.scale}px`;
-            highlight.style.height = `${item.height * viewport.scale}px`;
-            highlight.style.pointerEvents = 'none';
-            
-            // 검색어의 위치에 따른 하이라이트 조정
-            const startIndex = itemTextLower.indexOf(searchPattern);
-            if (startIndex > 0) {
-              const beforeText = itemText.substring(0, startIndex);
-              const beforeWidth = (beforeText.length / itemText.length) * item.width * viewport.scale;
-              highlight.style.left = `${x + beforeWidth}px`;
-              highlight.style.width = `${(searchPattern.length / itemText.length) * item.width * viewport.scale}px`;
-            }
-            
-            textLayer.appendChild(highlight);
+            context.fillRect(
+              tx,
+              ty - (item.height * scale),
+              item.width * scale,
+              item.height * scale
+            );
           }
         }
       }
