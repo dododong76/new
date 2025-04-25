@@ -50,6 +50,6 @@
 		"better-sqlite3": "^11.9.1",
 		"firebase": "^11.6.1",
 		"pdf-lib": "^1.17.1",
-		"pdfjs-dist": "^5.1.91"
+		"pdfjs-dist": "^3.11.174"
 	}
 }
