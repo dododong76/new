@@ -603,7 +603,7 @@
     <div class="info-section">
       <div class="info-card">
         <i class="fas fa-info-circle"></i>
-        <h3>사용 방법</h3>
+        <h3>PDF 하이라이터 사용법</h3>
         <ol>
           <li>PDF 파일을 업로드합니다.</li>
           <li>하이라이트하고 싶은 텍스트를 입력합니다.</li>
@@ -611,7 +611,9 @@
           <li>'PDF 다운로드' 버튼을 클릭하여 하이라이트된 PDF를 저장합니다.</li>
         </ol>
       </div>
-      
+    </div>
+
+    <div class="tetris-section">
       <div class="info-card tetris-game">
         <h3>테트리스 게임</h3>
         <div class="game-container">
@@ -897,14 +899,24 @@
     text-decoration: underline;
   }
 
+  .tetris-section {
+    margin-top: 2rem;
+    width: 100%;
+  }
+
   .tetris-game {
     padding: 1rem;
+    background: white;
+    border-radius: 15px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
   }
 
   .game-container {
     display: flex;
     gap: 2rem;
     margin-top: 1rem;
+    justify-content: center;
+    align-items: flex-start;
   }
 
   .game-board {
@@ -925,6 +937,7 @@
 
   .game-info {
     flex: 1;
+    max-width: 300px;
   }
 
   .game-controls {
@@ -941,6 +954,11 @@
     border: none;
     border-radius: 4px;
     cursor: pointer;
+    font-size: 1rem;
+  }
+
+  .game-controls button:hover {
+    background: #3182ce;
   }
 
   .game-controls button:disabled {
@@ -952,11 +970,15 @@
     color: #e53e3e;
     font-weight: bold;
     font-size: 1.2rem;
+    margin: 1rem 0;
   }
 
   .game-instructions {
     margin-top: 1rem;
     color: #4a5568;
+    background: #f7fafc;
+    padding: 1rem;
+    border-radius: 8px;
   }
 
   .game-instructions ul {
@@ -969,12 +991,14 @@
   }
 
   @media (max-width: 768px) {
-    .content {
-      grid-template-columns: 1fr;
-    }
-    
-    .button-group {
+    .game-container {
       flex-direction: column;
+      align-items: center;
+    }
+
+    .game-info {
+      width: 100%;
+      max-width: none;
     }
   }
 </style> 
