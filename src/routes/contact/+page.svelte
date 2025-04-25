@@ -47,15 +47,29 @@
       pdfDoc = await loadingTask.promise;
       numPages = pdfDoc.numPages;
       
-      // 텍스트 추출
+      // 텍스트 추출 개선
       let fullText = '';
       for (let i = 1; i <= numPages; i++) {
         const page = await pdfDoc.getPage(i);
         const textContent = await page.getTextContent();
-        const pageText = textContent.items.map(item => item.str).join(' ');
-        fullText += pageText + '\n';
+        const pageText = textContent.items
+          .map(item => {
+            // 텍스트 아이템의 특수한 속성 확인
+            if (item.str && item.str.trim()) {
+              return item.str;
+            }
+            return '';
+          })
+          .join(' ')
+          .replace(/\s+/g, ' '); // 연속된 공백 제거
+        
+        if (pageText.trim()) {
+          fullText += pageText + '\n';
+        }
       }
-      pdfContent = fullText;
+      
+      pdfContent = fullText.trim();
+      console.log('추출된 텍스트:', pdfContent); // 디버깅용
       
       // 첫 페이지 렌더링
       await renderPage(1);
@@ -142,18 +156,36 @@
       // 현재 페이지 다시 렌더링 (하이라이트 포함)
       await renderPage(currentPage);
       
-      // 검색된 텍스트 개수 계산
-      const searchText = highlightText.toLowerCase();
+      // 검색 로직 개선
+      const searchText = highlightText.toLowerCase().trim();
+      const contentText = pdfContent.toLowerCase();
+      
+      console.log('검색 텍스트:', searchText); // 디버깅용
+      
       const textPositions = [];
-      let pos = pdfContent.toLowerCase().indexOf(searchText);
+      let pos = contentText.indexOf(searchText);
       
       while (pos !== -1) {
         textPositions.push(pos);
-        pos = pdfContent.toLowerCase().indexOf(searchText, pos + 1);
+        pos = contentText.indexOf(searchText, pos + 1);
       }
 
       if (textPositions.length === 0) {
-        errorMessage = '검색된 텍스트가 없습니다.';
+        // 부분 검색 시도
+        const words = searchText.split(/\s+/);
+        let found = false;
+        
+        for (const word of words) {
+          if (word.length > 1 && contentText.includes(word)) {
+            found = true;
+            errorMessage = `"${highlightText}"와 정확히 일치하는 텍스트는 없지만, "${word}"가 포함된 부분이 있습니다.`;
+            break;
+          }
+        }
+        
+        if (!found) {
+          errorMessage = '검색된 텍스트가 없습니다.';
+        }
         return;
       }
 
