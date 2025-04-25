@@ -1,6 +1,6 @@
 [build]
   command = "npm run build"
-  publish = "build"
+  publish = ".svelte-kit/netlify"
 
 [build.environment]
   NODE_VERSION = "18"
@@ -12,10 +12,4 @@
 
 [build.environment]
   NODE_VERSION = "18"
-  VITE_FIREBASE_API_KEY = "AIzaSyAgrclXi_GojR9dCtyu6tFlQamUjeg9xSg"
-  VITE_FIREBASE_AUTH_DOMAIN = "my-project-f5245.firebaseapp.com"
-  VITE_FIREBASE_DATABASE_URL = "https://my-project-f5245-default-rtdb.firebaseio.com"
-  VITE_FIREBASE_PROJECT_ID = "my-project-f5245"
-  VITE_FIREBASE_STORAGE_BUCKET = "my-project-f5245.appspot.com"
-  VITE_FIREBASE_MESSAGING_SENDER_ID = "656599859191"
-  VITE_FIREBASE_APP_ID = "1:656599859191:web:509ed3eb7c6719ab77b8f2" 
+  # Firebase 환경 변수들은 Netlify의 환경 변수 설정에서 관리하는 것이 좋습니다 
