@@ -62,18 +62,49 @@
           disableCombineTextItems: false
         });
         
-        const pageText = textContent.items
-          .map(item => {
-            // 텍스트 아이템의 특수한 속성 확인
-            if (item.str && item.str.trim()) {
-              // 유니코드 정규화 적용
-              return item.str.normalize('NFC');
-            }
-            return '';
-          })
-          .join(' ')
-          .replace(/\s+/g, ' '); // 연속된 공백 제거
+        // 텍스트 아이템을 위치 정보와 함께 저장
+        const textItems = textContent.items.map(item => ({
+          text: item.str.normalize('NFC'),
+          x: item.transform[4],
+          y: item.transform[5],
+          width: item.width,
+          height: item.height
+        }));
+
+        // y좌표로 정렬하여 같은 줄의 텍스트끼리 그룹화
+        const lineThreshold = 5; // 같은 줄로 인식할 y좌표 차이 임계값
+        const lines = [];
+        let currentLine = [];
         
+        textItems.sort((a, b) => b.y - a.y).forEach(item => {
+          if (currentLine.length === 0) {
+            currentLine.push(item);
+          } else {
+            const lastItem = currentLine[currentLine.length - 1];
+            if (Math.abs(lastItem.y - item.y) < lineThreshold) {
+              currentLine.push(item);
+            } else {
+              // x좌표로 정렬하여 같은 줄의 텍스트를 왼쪽에서 오른쪽으로 정렬
+              currentLine.sort((a, b) => a.x - b.x);
+              lines.push(currentLine);
+              currentLine = [item];
+            }
+          }
+        });
+        
+        if (currentLine.length > 0) {
+          currentLine.sort((a, b) => a.x - b.x);
+          lines.push(currentLine);
+        }
+
+        // 각 줄의 텍스트를 결합
+        const pageText = lines.map(line => {
+          return line.map(item => {
+            // 불필요한 공백 제거 후 텍스트 반환
+            return item.text.trim();
+          }).join('');
+        }).join('\n');
+
         if (pageText.trim()) {
           fullText += pageText + '\n';
         }
@@ -119,23 +150,42 @@
           disableCombineTextItems: false
         });
         
-        const textItems = textContent.items;
-        
         context.fillStyle = 'rgba(255, 255, 0, 0.3)';
         
-        for (const item of textItems) {
-          const itemText = item.str.normalize('NFC').toLowerCase();
-          const searchText = highlightText.normalize('NFC').toLowerCase();
+        const searchText = highlightText.normalize('NFC').toLowerCase().trim();
+        
+        // 텍스트 아이템을 위치 정보와 함께 저장
+        const textItems = textContent.items.map(item => ({
+          text: item.str.normalize('NFC'),
+          transform: item.transform,
+          width: item.width,
+          height: item.height
+        }));
+
+        // 연속된 텍스트 아이템을 결합하여 검색
+        for (let i = 0; i < textItems.length; i++) {
+          let combinedText = textItems[i].text;
+          let combinedWidth = textItems[i].width;
+          let j = i + 1;
           
-          if (itemText.includes(searchText)) {
+          // 가까운 위치의 텍스트 아이템을 결합
+          while (j < textItems.length && 
+                 Math.abs(textItems[j-1].transform[5] - textItems[j].transform[5]) < 2 &&
+                 textItems[j].transform[4] - (textItems[j-1].transform[4] + textItems[j-1].width) < 10) {
+            combinedText += textItems[j].text;
+            combinedWidth += textItems[j].width;
+            j++;
+          }
+          
+          if (combinedText.toLowerCase().includes(searchText)) {
             const transform = viewport.transform;
-            const [x, y] = applyTransform(item.transform, transform);
+            const [x, y] = applyTransform(textItems[i].transform, transform);
             
             context.fillRect(
               x,
-              y - item.height,
-              item.width * viewport.scale,
-              item.height * viewport.scale
+              y - textItems[i].height,
+              combinedWidth * viewport.scale,
+              textItems[i].height * viewport.scale
             );
           }
         }
