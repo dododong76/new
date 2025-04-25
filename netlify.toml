@@ -10,6 +10,4 @@
   to = "/index.html"
   status = 200
 
-[build.environment]
-  NODE_VERSION = "18"
-  # Firebase 환경 변수들은 Netlify의 환경 변수 설정에서 관리하는 것이 좋습니다 
+# Firebase 환경 변수들은 Netlify의 환경 변수 설정에서 관리하는 것이 좋습니다 
