@@ -43,7 +43,13 @@
       errorMessage = '';
       
       const arrayBuffer = await pdfFile.arrayBuffer();
-      const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
+      const loadingTask = pdfjsLib.getDocument({
+        data: arrayBuffer,
+        cMapUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/cmaps/',
+        cMapPacked: true,
+        standardFontDataUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/standard_fonts/',
+      });
+      
       pdfDoc = await loadingTask.promise;
       numPages = pdfDoc.numPages;
       
@@ -51,12 +57,17 @@
       let fullText = '';
       for (let i = 1; i <= numPages; i++) {
         const page = await pdfDoc.getPage(i);
-        const textContent = await page.getTextContent();
+        const textContent = await page.getTextContent({
+          normalizeWhitespace: true,
+          disableCombineTextItems: false
+        });
+        
         const pageText = textContent.items
           .map(item => {
             // 텍스트 아이템의 특수한 속성 확인
             if (item.str && item.str.trim()) {
-              return item.str;
+              // 유니코드 정규화 적용
+              return item.str.normalize('NFC');
             }
             return '';
           })
@@ -95,21 +106,28 @@
       const context = canvas.getContext('2d');
       const renderContext = {
         canvasContext: context,
-        viewport: viewport
+        viewport: viewport,
+        enhanceTextSelection: true
       };
       
       await page.render(renderContext).promise;
       
       // 하이라이트된 텍스트가 있다면 그리기
       if (highlightText) {
-        const textContent = await page.getTextContent();
+        const textContent = await page.getTextContent({
+          normalizeWhitespace: true,
+          disableCombineTextItems: false
+        });
+        
         const textItems = textContent.items;
         
         context.fillStyle = 'rgba(255, 255, 0, 0.3)';
         
         for (const item of textItems) {
-          const itemText = item.str.toLowerCase();
-          if (itemText.includes(highlightText.toLowerCase())) {
+          const itemText = item.str.normalize('NFC').toLowerCase();
+          const searchText = highlightText.normalize('NFC').toLowerCase();
+          
+          if (itemText.includes(searchText)) {
             const transform = viewport.transform;
             const [x, y] = applyTransform(item.transform, transform);
             
@@ -157,8 +175,8 @@
       await renderPage(currentPage);
       
       // 검색 로직 개선
-      const searchText = highlightText.toLowerCase().trim();
-      const contentText = pdfContent.toLowerCase();
+      const searchText = highlightText.normalize('NFC').toLowerCase().trim();
+      const contentText = pdfContent.normalize('NFC').toLowerCase();
       
       console.log('검색 텍스트:', searchText); // 디버깅용
       
