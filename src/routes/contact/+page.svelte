@@ -4,7 +4,7 @@
   import { PDFDocument } from 'pdf-lib';
 
   let pdfFile = null;
-  let highlightText = '';
+  let searchText = '';
   let fileName = '';
   let errorMessage = '';
   let pdfContent = '';
@@ -144,7 +144,7 @@
       await page.render(renderContext).promise;
       
       // 하이라이트된 텍스트가 있다면 그리기
-      if (highlightText) {
+      if (searchText) {
         const textContent = await page.getTextContent({
           normalizeWhitespace: true,
           disableCombineTextItems: false
@@ -152,7 +152,7 @@
         
         context.fillStyle = 'rgba(255, 255, 0, 0.3)';
         
-        const searchText = highlightText.normalize('NFC').toLowerCase().trim();
+        const normalizedSearchText = searchText.normalize('NFC').toLowerCase().trim();
         
         // 텍스트 아이템을 위치 정보와 함께 저장
         const textItems = textContent.items.map(item => ({
@@ -160,7 +160,7 @@
           transform: item.transform,
           width: item.width,
           height: item.height,
-          fontSize: item.transform[0] // 글자 크기
+          fontSize: item.transform[0]
         }));
 
         // 각 텍스트 아이템에 대해 정확한 매칭 검사
@@ -169,16 +169,16 @@
           const itemText = item.text.toLowerCase();
           
           // 정확한 단어 매칭을 위한 검사
-          if (itemText === searchText) {
+          if (itemText === normalizedSearchText) {
             // 정확히 일치하는 경우
-            highlightText(item, viewport, context);
+            drawHighlight(item, viewport, context);
           } else {
             // 부분 문자열 검색
-            const startIndex = itemText.indexOf(searchText);
+            const startIndex = itemText.indexOf(normalizedSearchText);
             if (startIndex !== -1) {
               // 부분 문자열의 위치에 따라 하이라이트 영역 계산
               const beforeText = item.text.substring(0, startIndex);
-              const highlightWidth = (searchText.length / item.text.length) * item.width;
+              const highlightWidth = (normalizedSearchText.length / item.text.length) * item.width;
               const startX = item.transform[4] + (beforeText.length / item.text.length) * item.width;
               
               const transform = viewport.transform;
@@ -201,8 +201,8 @@
     }
   }
 
-  // 텍스트 아이템 하이라이트 함수
-  function highlightText(item, viewport, context) {
+  // 텍스트 아이템 하이라이트 함수 이름 변경
+  function drawHighlight(item, viewport, context) {
     const transform = viewport.transform;
     const [x, y] = applyTransform(item.transform, transform);
     
@@ -229,7 +229,7 @@
       return;
     }
     
-    if (!highlightText.trim()) {
+    if (!searchText.trim()) {
       errorMessage = '하이라이트할 텍스트를 입력해주세요.';
       return;
     }
@@ -242,18 +242,18 @@
       await renderPage(currentPage);
       
       // 검색 로직 개선
-      const searchText = highlightText.normalize('NFC').toLowerCase().trim();
+      const normalizedSearchText = searchText.normalize('NFC').toLowerCase().trim();
       const contentText = pdfContent.normalize('NFC').toLowerCase();
       
-      console.log('검색 텍스트:', searchText); // 디버깅용
+      console.log('검색 텍스트:', normalizedSearchText); // 디버깅용
       
       // 정확한 단어 매칭을 위한 정규식
-      const regex = new RegExp(`\\b${searchText}\\b`, 'gi');
+      const regex = new RegExp(`\\b${normalizedSearchText}\\b`, 'gi');
       const matches = contentText.match(regex) || [];
       
       if (matches.length === 0) {
         // 부분 검색 시도
-        const words = searchText.split(/\s+/);
+        const words = normalizedSearchText.split(/\s+/);
         let found = false;
         
         for (const word of words) {
@@ -262,7 +262,7 @@
             const wordMatches = contentText.match(wordRegex) || [];
             if (wordMatches.length > 0) {
               found = true;
-              errorMessage = `"${highlightText}"와 정확히 일치하는 텍스트는 없지만, "${word}"가 ${wordMatches.length}개 발견되었습니다.`;
+              errorMessage = `"${searchText}"와 정확히 일치하는 텍스트는 없지만, "${word}"가 ${wordMatches.length}개 발견되었습니다.`;
               break;
             }
           }
@@ -274,7 +274,7 @@
         return;
       }
 
-      errorMessage = `"${highlightText}"가 총 ${matches.length}개 발견되었습니다.`;
+      errorMessage = `"${searchText}"가 총 ${matches.length}개 발견되었습니다.`;
       
     } catch (error) {
       errorMessage = '하이라이트 처리 중 오류가 발생했습니다: ' + error.message;
@@ -372,7 +372,7 @@
           <input 
             type="text" 
             id="highlight-text"
-            bind:value={highlightText}
+            bind:value={searchText}
             placeholder="하이라이트할 단어나 문구를 입력하세요"
             class="highlight-input"
           />
