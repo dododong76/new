@@ -16,9 +16,50 @@
   let numPages = 0;
   let scale = 1.5;
   let pdfDoc = null;
+  let tetrisBoard = Array(20).fill().map(() => Array(10).fill(0));
+  let currentPiece = null;
+  let currentPiecePosition = { x: 0, y: 0 };
+  let gameInterval;
+  let gameOver = false;
+  let score = 0;
+  let isPaused = false;
+
+  const PIECES = [
+    // I piece
+    [[1, 1, 1, 1]],
+    // O piece
+    [[1, 1], [1, 1]],
+    // T piece
+    [[0, 1, 0], [1, 1, 1]],
+    // L piece
+    [[1, 0], [1, 0], [1, 1]],
+    // J piece
+    [[0, 1], [0, 1], [1, 1]],
+    // S piece
+    [[0, 1, 1], [1, 1, 0]],
+    // Z piece
+    [[1, 1, 0], [0, 1, 1]]
+  ];
+
+  const COLORS = [
+    '#000000', // empty cell
+    '#00f0f0', // cyan
+    '#f0f000', // yellow
+    '#a000f0', // purple
+    '#f0a000', // orange
+    '#0000f0', // blue
+    '#00f000', // green
+    '#f00000'  // red
+  ];
 
   onMount(() => {
     pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+    return () => {
+      if (gameInterval) {
+        clearInterval(gameInterval);
+        window.removeEventListener('keydown', handleKeyPress);
+      }
+    };
   });
 
   async function handleFileUpload(event) {
@@ -330,6 +371,144 @@
       loading = false;
     }
   }
+
+  function getRandomPiece() {
+    const piece = PIECES[Math.floor(Math.random() * PIECES.length)];
+    return {
+      shape: piece,
+      color: Math.floor(Math.random() * (COLORS.length - 1)) + 1
+    };
+  }
+
+  function startGame() {
+    if (gameInterval) return;
+    resetGame();
+    spawnPiece();
+    gameInterval = setInterval(gameLoop, 1000);
+    window.addEventListener('keydown', handleKeyPress);
+  }
+
+  function resetGame() {
+    tetrisBoard = Array(20).fill().map(() => Array(10).fill(0));
+    currentPiece = null;
+    currentPiecePosition = { x: 0, y: 0 };
+    gameOver = false;
+    score = 0;
+    isPaused = false;
+  }
+
+  function pauseGame() {
+    if (gameOver) return;
+    isPaused = !isPaused;
+    if (isPaused) {
+      clearInterval(gameInterval);
+      gameInterval = null;
+    } else {
+      gameInterval = setInterval(gameLoop, 1000);
+    }
+  }
+
+  function spawnPiece() {
+    currentPiece = getRandomPiece();
+    currentPiecePosition = {
+      x: Math.floor((10 - currentPiece.shape[0].length) / 2),
+      y: 0
+    };
+
+    if (!canMove(0, 0)) {
+      gameOver = true;
+      clearInterval(gameInterval);
+      window.removeEventListener('keydown', handleKeyPress);
+    }
+  }
+
+  function canMove(deltaX, deltaY) {
+    for (let y = 0; y < currentPiece.shape.length; y++) {
+      for (let x = 0; x < currentPiece.shape[y].length; x++) {
+        if (currentPiece.shape[y][x]) {
+          const newX = currentPiecePosition.x + x + deltaX;
+          const newY = currentPiecePosition.y + y + deltaY;
+          
+          if (newX < 0 || newX >= 10 || newY >= 20) return false;
+          if (newY >= 0 && tetrisBoard[newY][newX]) return false;
+        }
+      }
+    }
+    return true;
+  }
+
+  function mergePiece() {
+    for (let y = 0; y < currentPiece.shape.length; y++) {
+      for (let x = 0; x < currentPiece.shape[y].length; x++) {
+        if (currentPiece.shape[y][x]) {
+          const boardY = currentPiecePosition.y + y;
+          if (boardY >= 0) {
+            tetrisBoard[boardY][currentPiecePosition.x + x] = currentPiece.color;
+          }
+        }
+      }
+    }
+  }
+
+  function clearLines() {
+    let linesCleared = 0;
+    for (let y = 19; y >= 0; y--) {
+      if (tetrisBoard[y].every(cell => cell !== 0)) {
+        tetrisBoard.splice(y, 1);
+        tetrisBoard.unshift(Array(10).fill(0));
+        linesCleared++;
+        y++;
+      }
+    }
+    if (linesCleared > 0) {
+      score += [0, 100, 300, 500, 800][linesCleared];
+    }
+  }
+
+  function rotatePiece() {
+    const rotated = Array(currentPiece.shape[0].length).fill()
+      .map((_, i) => currentPiece.shape.map(row => row[row.length - 1 - i]));
+    
+    const originalPiece = currentPiece.shape;
+    currentPiece.shape = rotated;
+    
+    if (!canMove(0, 0)) {
+      currentPiece.shape = originalPiece;
+    }
+  }
+
+  function gameLoop() {
+    if (gameOver || isPaused) return;
+    
+    if (canMove(0, 1)) {
+      currentPiecePosition.y++;
+    } else {
+      mergePiece();
+      clearLines();
+      spawnPiece();
+    }
+    tetrisBoard = [...tetrisBoard];
+  }
+
+  function handleKeyPress(event) {
+    if (gameOver || isPaused) return;
+    
+    switch (event.key) {
+      case 'ArrowLeft':
+        if (canMove(-1, 0)) currentPiecePosition.x--;
+        break;
+      case 'ArrowRight':
+        if (canMove(1, 0)) currentPiecePosition.x++;
+        break;
+      case 'ArrowDown':
+        if (canMove(0, 1)) currentPiecePosition.y++;
+        break;
+      case 'ArrowUp':
+        rotatePiece();
+        break;
+    }
+    tetrisBoard = [...tetrisBoard];
+  }
 </script>
 
 <div class="container">
@@ -433,11 +612,53 @@
         </ol>
       </div>
       
-      <div class="info-card">
-        <i class="fas fa-envelope"></i>
-        <h3>문의하기</h3>
-        <p>이메일: method917@naver.com</p>
-        <p>블로그: <a href="https://blog.naver.com/method917" target="_blank">https://blog.naver.com/method917</a></p>
+      <div class="info-card tetris-game">
+        <h3>테트리스 게임</h3>
+        <div class="game-container">
+          <div class="game-board">
+            {#each tetrisBoard as row, y}
+              <div class="row">
+                {#each row as cell, x}
+                  <div 
+                    class="cell"
+                    style="background-color: {
+                      currentPiece && 
+                      y >= currentPiecePosition.y && 
+                      y < currentPiecePosition.y + currentPiece.shape.length &&
+                      x >= currentPiecePosition.x &&
+                      x < currentPiecePosition.x + currentPiece.shape[0].length &&
+                      currentPiece.shape[y - currentPiecePosition.y][x - currentPiecePosition.x]
+                        ? COLORS[currentPiece.color]
+                        : COLORS[cell]
+                    }"
+                  />
+                {/each}
+              </div>
+            {/each}
+          </div>
+          <div class="game-info">
+            <p>점수: {score}</p>
+            {#if gameOver}
+              <p class="game-over">게임 오버!</p>
+            {/if}
+            <div class="game-controls">
+              <button on:click={startGame} disabled={gameInterval && !gameOver}>
+                {gameOver ? '다시 시작' : '게임 시작'}
+              </button>
+              <button on:click={pauseGame} disabled={!gameInterval || gameOver}>
+                {isPaused ? '계속하기' : '일시정지'}
+              </button>
+            </div>
+            <div class="game-instructions">
+              <p>조작 방법:</p>
+              <ul>
+                <li>← → : 좌우 이동</li>
+                <li>↑ : 회전</li>
+                <li>↓ : 빠른 하강</li>
+              </ul>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -674,6 +895,77 @@
 
   .info-card a:hover {
     text-decoration: underline;
+  }
+
+  .tetris-game {
+    padding: 1rem;
+  }
+
+  .game-container {
+    display: flex;
+    gap: 2rem;
+    margin-top: 1rem;
+  }
+
+  .game-board {
+    border: 2px solid #2d3748;
+    background: #1a202c;
+    padding: 2px;
+  }
+
+  .row {
+    display: flex;
+  }
+
+  .cell {
+    width: 25px;
+    height: 25px;
+    border: 1px solid #2d3748;
+  }
+
+  .game-info {
+    flex: 1;
+  }
+
+  .game-controls {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    margin: 1rem 0;
+  }
+
+  .game-controls button {
+    padding: 0.5rem 1rem;
+    background: #4299e1;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+
+  .game-controls button:disabled {
+    background: #cbd5e0;
+    cursor: not-allowed;
+  }
+
+  .game-over {
+    color: #e53e3e;
+    font-weight: bold;
+    font-size: 1.2rem;
+  }
+
+  .game-instructions {
+    margin-top: 1rem;
+    color: #4a5568;
+  }
+
+  .game-instructions ul {
+    list-style-type: none;
+    padding-left: 0;
+  }
+
+  .game-instructions li {
+    margin: 0.5rem 0;
   }
 
   @media (max-width: 768px) {
